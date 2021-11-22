@@ -1,0 +1,5 @@
+zip-build
+.coverage
+*.pytest*
+*__pycache__*
+greengrass-build

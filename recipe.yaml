@@ -1,0 +1,112 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: aws.greengrass.labs.database.InfluxDB
+ComponentVersion: '1.0.0'
+ComponentDescription: 'A component that provisions and manages an InfluxDB instance.'
+ComponentPublisher: Amazon
+ComponentDependencies:
+    aws.greengrass.SecretManager:
+      VersionRequirement: ~2.1.0
+      DependencyType: HARD
+    aws.greengrass.DockerApplicationManager:
+      VersionRequirement: ~2.0.0
+      DependencyType: HARD
+ComponentConfiguration:
+  DefaultConfiguration:
+    AutoProvision: 'true'
+    InfluxDBMountPath: '/home/ggc_user/dashboard'
+    SecretArn: 'arn:aws:secretsmanager:<region>:<account>:secret:<name>'
+    InfluxDBContainerName: greengrass_InfluxDB
+    InfluxDBOrg: 'greengrass'
+    InfluxDBBucket: 'greengrass-telemetry'
+    InfluxDBInterface: '127.0.0.1'
+    InfluxDBPort: '8086'
+    BridgeNetworkName: 'greengrass-telemetry-bridge'
+    ServerProtocol: 'https'
+    GenerateSelfSignedCert: 'true'
+    SkipTLSVerify: 'true'
+    HTTPSCertExpirationDays: '365'
+    TokenRequestTopic: 'greengrass/influxdb/token/request'
+    TokenResponseTopic: 'greengrass/influxdb/token/response'
+    accessControl:
+      aws.greengrass.ipc.pubsub:
+        aws.greengrass.labs.database.InfluxDB:pubsub:1:
+          policyDescription: Allows access to subscribe to the token request topic.
+          operations:
+            - aws.greengrass#SubscribeToTopic
+          resources:
+            - "greengrass/influxdb/token/request"
+        aws.greengrass.labs.database.InfluxDB:pubsub:2:
+          policyDescription: Allows access to publish to the token response topic.
+          operations:
+            - aws.greengrass#PublishToTopic
+          resources:
+            - "greengrass/influxdb/token/response"
+      aws.greengrass.SecretManager:
+        aws.greengrass.labs.database.InfluxDB:secrets:1:
+          policyDescription: Allows access to the secret containing InfluxDB credentials.
+          operations:
+            - aws.greengrass#GetSecretValue
+          resources:
+            - 'arn:aws:secretsmanager:<region>:<account>:secret:<name>'
+Manifests:
+  - Platform:
+      os: /darwin|linux/
+    Lifecycle:
+      Install: 
+        RequiresPrivilege: true
+        script: |-
+          set -eu 
+          docker network inspect {configuration:/BridgeNetworkName} > /dev/null 2>&1 || docker network create --driver bridge {configuration:/BridgeNetworkName}
+          
+          echo "Using mount path: {configuration:/InfluxDBMountPath}..."
+          if [ "{configuration:/ServerProtocol}" = "https" ] && [ "{configuration:/GenerateSelfSignedCert}" = "true" ]; then
+            
+            if [ ! -d "{configuration:/InfluxDBMountPath}/influxdb2_certs" ]; then
+              echo "Creating self-signed certificate for HTTPS..."
+              mkdir -p {configuration:/InfluxDBMountPath}/influxdb2_certs
+              openssl req -x509 -nodes -newkey rsa:2048 -batch \
+                -keyout {configuration:/InfluxDBMountPath}/influxdb2_certs/influxdb.key \
+                -out {configuration:/InfluxDBMountPath}/influxdb2_certs/influxdb.crt \
+                -days {configuration:/HTTPSCertExpirationDays}
+
+              echo "Setting file permissions for HTTPS certs..."
+              chmod -R 077 {configuration:/InfluxDBMountPath}/influxdb2_certs
+            
+            else
+              echo "Found existing certs for HTTPS, skipping creation..."
+            fi
+          fi
+      Run:
+        RequiresPrivilege: false
+        script: |-
+          set -eu
+
+          bash {artifacts:decompressedPath}/aws-greengrass-labs-database-influxdb/src/run_influxdb.sh \
+          {configuration:/AutoProvision} \
+          {configuration:/InfluxDBContainerName} \
+          {configuration:/InfluxDBBucket} \
+          {configuration:/InfluxDBOrg} \
+          {artifacts:decompressedPath}/aws-greengrass-labs-database-influxdb/src/ \
+          {configuration:/SecretArn} \
+          {configuration:/InfluxDBPort} \
+          {configuration:/TokenRequestTopic} \
+          {configuration:/TokenResponseTopic} \
+          {configuration:/ServerProtocol} \
+          {configuration:/BridgeNetworkName} \
+          {configuration:/InfluxDBMountPath} \
+          {configuration:/InfluxDBInterface} \
+          {configuration:/SkipTLSVerify}
+      Shutdown:
+        RequiresPrivilege: false
+        script: |-
+          set -eu
+          
+          echo "Stopping the InfluxDB container..."
+          docker stop {configuration:/InfluxDBContainerName}
+          echo "Removing the InfluxDB container..."
+          docker rm {configuration:/InfluxDBContainerName}
+    Artifacts:
+      - URI: 'docker:influxdb:2.0.9' 
+      - URI: s3://aws-greengrass-labs-database-influxdb.zip
+        Unarchive: ZIP

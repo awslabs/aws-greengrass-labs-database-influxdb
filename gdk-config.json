@@ -1,0 +1,16 @@
+{
+  "component" :{
+    "aws.greengrass.labs.database.InfluxDB": {
+      "author": "AWS IoT Greengrass",
+      "version": "LATEST", 
+      "build": {
+        "build_system": "zip"
+      },
+      "publish": {
+        "bucket": "<PLACEHOLDER BUCKET HERE>", 
+        "region": "<PLACEHOLDER REGION HERE>" 
+      }
+    }
+  },
+  "gdk_version": "1.0.0"
+}
