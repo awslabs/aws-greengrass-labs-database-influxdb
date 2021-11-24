@@ -27,9 +27,9 @@ The `aws.greengrass.labs.database.InfluxDB` component supports the following con
     * default: `true` 
   
 
-* `SecretArn` - The ARN of the AWS Secret Manager secret containing your desired InfluxDB username/password.
-    * (`string`)
-    * default: `arn:aws:secretsmanager:<region>:<account>:secret:<name>`
+* `SecretArn` - The ARN of the AWS Secret Manager secret containing your desired InfluxDB username/password. You must configure and deploy this secret with the [Secret manager component](https://docs.aws.amazon.com/greengrass/v2/developerguide/secret-manager-component.html), and you must specify this secret in the `accessControl` configuration parameter to allow this component to use it.
+  * (`string`)
+  * default: `arn:aws:secretsmanager:<region>:<account>:secret:<name>`
 
 
 * `InfluxDBMountPath` - Absolute path of a directory on your host machine that will be used to persist InfluxDB data and certs.
@@ -96,6 +96,7 @@ The `aws.greengrass.labs.database.InfluxDB` component supports the following con
 
 
 * `accessControl` - [Greengrass Access Control Policy](https://docs.aws.amazon.com/greengrass/v2/developerguide/interprocess-communication.html#ipc-authorization-policies), required for secret retrieval and pub/sub token vending.
+  * A default `accessControl` policy allowing subscribe access to the `greengrass/influxdb/token/request` topic and publish access to the `greengrass/influxdb/token/response` has been included, as well as an incomplete policy for retrieving a secret, which you will need to configure.
 
 ## Setup
 
@@ -122,25 +123,7 @@ The `aws.greengrass.labs.database.InfluxDB` component supports the following con
       sudo apt-get install -y docker-ce docker-ce-cli containerd.io
    ```
    
-3. Setup AWS IoT Greengrass [according to the installation instructions](https://docs.aws.amazon.com/greengrass/v2/developerguide/quick-installation.html):
-   1. Download Greengrass:
-       ```
-       curl -s https://d2s8p88vqu9w66.cloudfront.net/releases/greengrass-nucleus-latest.zip > greengrass-nucleus-latest.zip && unzip greengrass-nucleus-latest.zip -d GreengrassInstaller && rm greengrass-nucleus-latest.zip
-       ```
-   2. Export your AWS credentials, then start Greengrass:
-   ```
-    sudo -E java -Droot="/greengrass/v2" -Dlog.store=FILE \
-      -jar ./GreengrassInstaller/lib/Greengrass.jar \
-      --aws-region region \
-      --thing-name MyGreengrassCore \
-      --thing-group-name MyGreengrassCoreGroup \
-      --thing-policy-name GreengrassV2IoTThingPolicy \
-      --tes-role-name GreengrassV2TokenExchangeRole \
-      --tes-role-alias-name GreengrassCoreTokenExchangeRoleAlias \
-      --component-default-user ggc_user:ggc_group \
-      --provision true \
-      --setup-system-service true       
-    ```
+3. Setup AWS IoT Greengrass [according to the installation instructions](https://docs.aws.amazon.com/greengrass/v2/developerguide/install-greengrass-core-v2.html):
 4. Log in as superuser and allow `ggc_user:ggc_group` to use Docker, [as per the Docker documentation](https://docs.docker.com/engine/install/linux-postinstall/):
    ```
       sudo su; sudo usermod -aG docker ggc_user; newgrp docker 
@@ -148,7 +131,8 @@ The `aws.greengrass.labs.database.InfluxDB` component supports the following con
    Test your access with first `sudo su` and then `su - ggc_user -c "docker ps"`
 
 ### Component Setup
-1. Create an AWS Secrets Manager Secret to store your InfluxDB username/password.
+1. Clone or download the `aws.greengrass.labs.database.InfluxDB` repository to your local workspace.
+2. Create an AWS Secrets Manager Secret to store your InfluxDB username/password.
    1. Go to [AWS Secrets Manager](https://console.aws.amazon.com/secretsmanager/home?region=us-east-1#!/listSecrets): 
    2. Create new secret → Other type of Secret → Plaintext. The secret you use should be in the following format:
       ```
@@ -161,7 +145,7 @@ The `aws.greengrass.labs.database.InfluxDB` component supports the following con
     
     Note down the ARN of the secrets you just made.
 
-2. Authorize Greengrass to retrieve this secret using IAM:
+3. Authorize Greengrass to retrieve this secret using IAM:
    1. Follow [the Greengrass documentation](:https://docs.aws.amazon.com/greengrass/v2/developerguide/device-service-role.html) to add authorization
    2. See the [`aws.greengrass.SecretManager` documentation for more information.](https://docs.aws.amazon.com/greengrass/v2/developerguide/secret-manager-component.html)
    3. Your policy should include `secretsmanager:GetSecretValue` for the secret you just created:
@@ -180,14 +164,14 @@ The `aws.greengrass.labs.database.InfluxDB` component supports the following con
     }
     ```
 
-3. Create the component by following [the Greengrass documentation](https://docs.aws.amazon.com/greengrass/v2/developerguide/develop-greengrass-components.html)
+4. Create the component by following [the Greengrass documentation](https://docs.aws.amazon.com/greengrass/v2/developerguide/develop-greengrass-components.html)
    1. Use `zip -r aws-greengrass-labs-database-influxdb.zip src` to zip the `src` directory into the deployment artifact, and upload this to S3
    2. Modify the `aws.greengrass.labs.database.InfluxDB` recipe at `recipe.yaml`.
          1. Replace the artifact URI `s3://aws-greengrass-labs-database-influxdb.zip` with your S3 path
          2. Replace the two occurrences of `'arn:aws:secretsmanager:<region>:<account>:secret:<name>'` with your created secret ARN.
    3. (Optional) Specify a mount path. The default used will be `/home/ggc_user/dashboard`.
       1. When specifying a mount path, note that this mount path will be used to store sensitive data, including secrets and certs used for InfluxDB auth. You are responsible for securing this directory on your device. Ensure that `ggc_user:ggc_group` has read/write/execute access to this directory with the following command: `namei -m <path>`.
-4. Create deployment via the CLI or AWS Console, from [Greengrass documentation](https://docs.aws.amazon.com/greengrass/v2/developerguide/create-deployments.html). The following components should be configured in your deployment:
+5. Create deployment via the CLI or AWS Console, from [Greengrass documentation](https://docs.aws.amazon.com/greengrass/v2/developerguide/create-deployments.html). The following components should be configured in your deployment:
    1. `aws.greengrass.SecretManager`:
    ```
    "cloudSecrets": [
@@ -197,10 +181,10 @@ The `aws.greengrass.labs.database.InfluxDB` component supports the following con
    ]
    ```
  
-5. View the component logs at `/greengrass/v2/logs/aws.greengrass.labs.database.InfluxDB.log`. If correctly set up, you will see the message `InfluxDB has been successfully set up; now listening to token requests` and see logs from InfluxDB as it runs.
+6. View the component logs at `/greengrass/v2/logs/aws.greengrass.labs.database.InfluxDB.log`. If correctly set up, you will see the message `InfluxDB has been successfully set up; now listening to token requests` and see logs from InfluxDB as it runs.
    1. If you would like to forward the port from a remote machine, ssh in with the following command to forward the port:
    `ssh -L 8086:localhost:8086 ubuntu@<IP address>`
-6. Visit `https://localhost:8086` to view InfluxDB, and login with your username and password.
+7. Visit `https://localhost:8086` to view InfluxDB, and login with your username and password.
    1. If using self-signed certificates (the default), you will either need to add trust for these certificates, or possibly use your browser's incognito mode.
 Please see the Troubleshooting section to resolve any issues you may encounter.
 
@@ -266,7 +250,7 @@ docker exec -it greengrass_InfluxDB influx auth create \
 
 
 ## Resources
-* [AWS IoT Greengrass v2 Developer Guide](https://docs.aws.amazon.com/greengrass/v2/developerguide/what-is-iot-greengrass.html)
+* [AWS IoT Greengrass V2 Developer Guide](https://docs.aws.amazon.com/greengrass/v2/developerguide/what-is-iot-greengrass.html)
 * [InfluxDB Dockerhub ](https://hub.docker.com/_/influxdb)
 * [InfluxDB v2 Documentation](https://docs.influxdata.com/influxdb/v2.0/)
 * [InfluxDB v2 Docker Documentation](https://docs.influxdata.com/influxdb/v2.0/install/?t=Docker)
