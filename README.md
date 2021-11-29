@@ -104,7 +104,7 @@ The `aws.greengrass.labs.database.InfluxDB` component supports the following con
 
 **The following steps are for Ubuntu 20.04 x86_64, but will be similar for most platforms.**
 
-1. Install dependencies.
+1. Install dependencies on the host machine.
     ```
    sudo apt-get update; sudo apt-get install -y \
      ca-certificates \
@@ -116,23 +116,29 @@ The `aws.greengrass.labs.database.InfluxDB` component supports the following con
      python3-pip; \
    python3 -m pip install awsiotsdk influxdb-client
     ```
-2. Install Docker using [the instructions for Ubuntu](https://docs.docker.com/engine/install/ubuntu/): 
+2. Install Docker on the host machine using [the instructions for Ubuntu](https://docs.docker.com/engine/install/ubuntu/): 
    ```
       echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu \ $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
       sudo apt-get update
       sudo apt-get install -y docker-ce docker-ce-cli containerd.io
    ```
    
-3. Setup AWS IoT Greengrass [according to the installation instructions](https://docs.aws.amazon.com/greengrass/v2/developerguide/install-greengrass-core-v2.html):
-4. Log in as superuser and allow `ggc_user:ggc_group` to use Docker, [as per the Docker documentation](https://docs.docker.com/engine/install/linux-postinstall/):
+3. Setup AWS IoT Greengrass on the host machine [according to the installation instructions](https://docs.aws.amazon.com/greengrass/v2/developerguide/install-greengrass-core-v2.html):
+4. Log in as superuser with `sudo su` and then allow `ggc_user:ggc_group` to use Docker, [as per the Docker documentation](https://docs.docker.com/engine/install/linux-postinstall/):
    ```
-      sudo su; sudo usermod -aG docker ggc_user; newgrp docker 
+      sudo usermod -aG docker ggc_user; newgrp docker 
    ```
    Test your access with first `sudo su` and then `su - ggc_user -c "docker ps"`
 
 ### Component Setup
-1. Clone or download the `aws.greengrass.labs.database.InfluxDB` repository to your local workspace.
-2. Create an AWS Secrets Manager Secret to store your InfluxDB username/password.
+1. Install [the Greengrass Development Kit CLI](https://docs.aws.amazon.com/greengrass/v2/developerguide/install-greengrass-development-kit-cli.html) in your local workspace.
+   1. Run `python3 -m pip install git+https://github.com/aws-greengrass/aws-greengrass-gdk-cli.git`
+2. Pull down the component in a new directory using the GDK CLI.
+    ```
+   mkdir aws-greengrass-labs-database-influxdb; cd aws-greengrass-labs-database-influxdb
+   gdk component init --repository aws-greengrass-labs-database-influxdb 
+   ```
+3. Create an AWS Secrets Manager Secret to store your InfluxDB username/password.
    1. Go to [AWS Secrets Manager](https://console.aws.amazon.com/secretsmanager/home?region=us-east-1#!/listSecrets): 
    2. Create new secret → Other type of Secret → Plaintext. The secret you use should be in the following format:
       ```
@@ -145,7 +151,7 @@ The `aws.greengrass.labs.database.InfluxDB` component supports the following con
     
     Note down the ARN of the secrets you just made.
 
-3. Authorize Greengrass to retrieve this secret using IAM:
+4. Authorize Greengrass to retrieve this secret using IAM:
    1. Follow [the Greengrass documentation](:https://docs.aws.amazon.com/greengrass/v2/developerguide/device-service-role.html) to add authorization
    2. See the [`aws.greengrass.SecretManager` documentation for more information.](https://docs.aws.amazon.com/greengrass/v2/developerguide/secret-manager-component.html)
    3. Your policy should include `secretsmanager:GetSecretValue` for the secret you just created:
@@ -164,14 +170,20 @@ The `aws.greengrass.labs.database.InfluxDB` component supports the following con
     }
     ```
 
-4. Create the component by following [the Greengrass documentation](https://docs.aws.amazon.com/greengrass/v2/developerguide/develop-greengrass-components.html)
-   1. Use `zip -r aws-greengrass-labs-database-influxdb.zip src` to zip the `src` directory into the deployment artifact, and upload this to S3
-   2. Modify the `aws.greengrass.labs.database.InfluxDB` recipe at `recipe.yaml`.
-         1. Replace the artifact URI `s3://aws-greengrass-labs-database-influxdb.zip` with your S3 path
+5. Create the component by following [the Greengrass documentation](https://docs.aws.amazon.com/greengrass/v2/developerguide/develop-greengrass-components.html)
+   1. Modify the `aws.greengrass.labs.database.InfluxDB` recipe at `recipe.yaml`.
          2. Replace the two occurrences of `'arn:aws:secretsmanager:<region>:<account>:secret:<name>'` with your created secret ARN.
-   3. (Optional) Specify a mount path. The default used will be `/home/ggc_user/dashboard`.
-      1. When specifying a mount path, note that this mount path will be used to store sensitive data, including secrets and certs used for InfluxDB auth. You are responsible for securing this directory on your device. Ensure that `ggc_user:ggc_group` has read/write/execute access to this directory with the following command: `namei -m <path>`.
-5. Create deployment via the CLI or AWS Console, from [Greengrass documentation](https://docs.aws.amazon.com/greengrass/v2/developerguide/create-deployments.html). The following components should be configured in your deployment:
+         3. (Optional) Modify the mount path. The default used will be `/home/ggc_user/dashboard`.
+            1. When specifying a mount path, note that this mount path will be used to store sensitive data, including secrets and certs used for InfluxDB auth. You are responsible for securing this directory on your device. Ensure that `ggc_user:ggc_group` has read/write/execute access to this directory with the following command: `namei -m <path>`.
+   2. Use the [GDK CLI](https://docs.aws.amazon.com/greengrass/v2/developerguide/greengrass-development-kit-cli.html) to build the component to prepare for publishing.
+   ```
+   gdk component build
+   ```
+   4. Use the [GDK CLI](https://docs.aws.amazon.com/greengrass/v2/developerguide/greengrass-development-kit-cli.html) to create a private component.
+   ```
+   gdk component publish
+   ```
+6. Create deployment via the AWS CLI or AWS Console, from [Greengrass documentation](https://docs.aws.amazon.com/greengrass/v2/developerguide/create-deployments.html). The following components should be configured in your deployment:
    1. `aws.greengrass.SecretManager`:
    ```
    "cloudSecrets": [
@@ -181,10 +193,10 @@ The `aws.greengrass.labs.database.InfluxDB` component supports the following con
    ]
    ```
  
-6. View the component logs at `/greengrass/v2/logs/aws.greengrass.labs.database.InfluxDB.log`. If correctly set up, you will see the message `InfluxDB has been successfully set up; now listening to token requests` and see logs from InfluxDB as it runs.
+7. View the component logs at `/greengrass/v2/logs/aws.greengrass.labs.database.InfluxDB.log`. If correctly set up, you will see the message `InfluxDB has been successfully set up; now listening to token requests` and see logs from InfluxDB as it runs.
    1. If you would like to forward the port from a remote machine, ssh in with the following command to forward the port:
    `ssh -L 8086:localhost:8086 ubuntu@<IP address>`
-7. Visit `https://localhost:8086` to view InfluxDB, and login with your username and password.
+8. Visit `https://localhost:8086` to view InfluxDB, and login with your username and password.
    1. If using self-signed certificates (the default), you will either need to add trust for these certificates, or possibly use your browser's incognito mode.
 Please see the Troubleshooting section to resolve any issues you may encounter.
 
@@ -251,6 +263,8 @@ docker exec -it greengrass_InfluxDB influx auth create \
 
 ## Resources
 * [AWS IoT Greengrass V2 Developer Guide](https://docs.aws.amazon.com/greengrass/v2/developerguide/what-is-iot-greengrass.html)
+* [AWS IoT Greengrass V2 Community Components](https://docs.aws.amazon.com/greengrass/v2/developerguide/greengrass-software-catalog.html)
+* [AWS IoT Greengrass Development Kit CLI](https://docs.aws.amazon.com/greengrass/v2/developerguide/greengrass-development-kit-cli.html)
 * [InfluxDB Dockerhub ](https://hub.docker.com/_/influxdb)
 * [InfluxDB v2 Documentation](https://docs.influxdata.com/influxdb/v2.0/)
 * [InfluxDB v2 Docker Documentation](https://docs.influxdata.com/influxdb/v2.0/install/?t=Docker)
