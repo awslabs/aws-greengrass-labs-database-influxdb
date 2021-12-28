@@ -159,6 +159,7 @@ The `aws.greengrass.labs.database.InfluxDB` component supports the following con
         {
         "Version": "2012-10-17",
         "Statement": [
+            {
                 "Sid": "VisualEditor1",
                 "Effect": "Allow",
                 "Action": "secretsmanager:GetSecretValue",
