@@ -79,8 +79,9 @@ def test_retrieve_secret_valid_response(mocker):
 
     import src.influxDBTokenPublisher as publisher
 
-    influxdb_rw_token = publisher.retrieve_influxDB_token(testArgs)
-    assert influxdb_rw_token == "testToken"
+    json_output = json.loads(publisher.retrieve_influxDB_token_json(testArgs))[0]
+    assert json_output['description'] == "greengrass_readwrite"
+    assert json_output['token'] == "testToken"
     assert mock_subprocess_call.call_count == 1
 
 
@@ -113,8 +114,8 @@ def test_retrieve_secret_invalid_response(mocker):
     import src.influxDBTokenPublisher as publisher
 
     with pytest.raises(SystemExit) as pytest_wrapped_e:
-        publisher.retrieve_influxDB_token(testArgs)
-        assert pytest_wrapped_e.type == SystemExit
+        publisher.retrieve_influxDB_token_json(testArgs)
+    assert pytest_wrapped_e.type == SystemExit
 
 
 def test_retrieve_secret_failed_response(mocker):
@@ -137,7 +138,7 @@ def test_retrieve_secret_failed_response(mocker):
     import src.influxDBTokenPublisher as publisher
 
     with pytest.raises(SystemExit) as pytest_wrapped_e:
-        publisher.retrieve_influxDB_token(testArgs)
+        publisher.retrieve_influxDB_token_json(testArgs)
         assert pytest_wrapped_e.type == SystemExit
 
 
@@ -159,3 +160,25 @@ def test_listen_to_token_requests(mocker):
     import src.influxDBTokenPublisher as publisher
     publisher.listen_to_token_requests(testArgs, test_influxdb_rw_token)
     assert mock_ipc_client.call_count == 2
+
+
+def test_no_ipc_connection(mocker):
+
+    testArgs = argparse.Namespace(
+        subscribe_topic="test/subscribe",
+        publish_topic="test/publish",
+        influxdb_container_name="test_containername",
+        influxdb_org="testorg",
+        influxdb_bucket="testbucket",
+        influxdb_port="testport",
+        influxdb_interface="testinterface",
+        server_protocol="https",
+        skip_tls_verify="true"
+    )
+    test_influxdb_rw_token = "testToken"
+    mocker.patch("awsiot.greengrasscoreipc.connect", side_effect=TimeoutError("test"))
+
+    import src.influxDBTokenPublisher as publisher
+
+    with pytest.raises(TimeoutError, match='test'):
+        publisher.listen_to_token_requests(testArgs, test_influxdb_rw_token)

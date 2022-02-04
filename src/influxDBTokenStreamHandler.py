@@ -3,25 +3,28 @@
 
 import concurrent.futures
 import logging
-
+import json
 import awsiot.greengrasscoreipc
 import awsiot.greengrasscoreipc.client as client
 from awsiot.greengrasscoreipc.model import (
     PublishToTopicRequest,
     PublishMessage,
-    BinaryMessage,
+    JsonMessage,
     SubscriptionResponseMessage,
     UnauthorizedError
 )
 
 TIMEOUT = 10
+# Admin token description is in the format "USERNAME's Token"
+ADMIN_TOKEN_IDENTIFIER = "'s Token"
 
 
 class InfluxDBTokenStreamHandler(client.SubscribeToTopicStreamHandler):
-    def __init__(self, influxDB_json, publish_topic):
+    def __init__(self, influxdb_metadata_json, influxdb_token_json, publish_topic):
         super().__init__()
         # We need a separate IPC client for publishing
-        self.influxDB_json = influxDB_json
+        self.influxDB_metadata_json = influxdb_metadata_json
+        self.influxDB_token_json = influxdb_token_json
         self.publish_topic = publish_topic
         self.publish_client = awsiot.greengrasscoreipc.connect()
         logging.info("Initialized InfluxDBTokenStreamHandler")
@@ -39,12 +42,12 @@ class InfluxDBTokenStreamHandler(client.SubscribeToTopicStreamHandler):
             None
         """
         try:
-            message = str(event.binary_message.message, "utf-8")
-            if message == 'GetInfluxDBData':
-                logging.info('Sending InfluxDB RW Token on the response topic')
-                self.publish_response()
-            else:
-                logging.warning('Unknown request type received over pub/sub')
+            message = event.json_message.message
+            publish_json = self.get_publish_json(message)
+            if not publish_json:
+                logging.error("Failed to construct requested response for access")
+                return
+            self.publish_response(publish_json)
         except Exception:
             logging.error('Received an error', exc_info=True)
 
@@ -80,13 +83,49 @@ class InfluxDBTokenStreamHandler(client.SubscribeToTopicStreamHandler):
         """
         logging.info('Subscribe to topic stream closed.')
 
-    def publish_response(self) -> None:
+    def get_publish_json(self, message):
+        """
+        Parse the correct token based on the IPC message received, and construct the final JSON to publish.
+
+        :param message: the received IPC messsage
+        :return: the complete JSON, including token, to publish
+        """
+
+        loaded_token_json = json.loads(self.influxDB_token_json)
+        publish_json = json.loads(self.influxDB_metadata_json)
+
+        if not message['action'] == 'RetrieveToken':
+            logging.warning('Unknown request type received over pub/sub')
+            return None
+
+        token = ''
+        if message['accessLevel'] == 'RW':
+            token = next(d for d in loaded_token_json if d['description'] == 'greengrass_readwrite')['token']
+        elif message['accessLevel'] == 'RO':
+            token = next(d for d in loaded_token_json if d['description'] == 'greengrass_read')['token']
+        elif message['accessLevel'] == 'Admin':
+            if not ADMIN_TOKEN_IDENTIFIER in loaded_token_json[0]['description']:
+                logging.warning("InfluxDB admin token is missing or in an incorrect format")
+                return None
+            token = loaded_token_json[0]['token']
+        else:
+            logging.warning('Unknown token request type specified over pub/sub')
+            return None
+
+        if len(token) == 0:
+            raise ValueError('Failed to parse InfluxDB {} token!'.format(message['accessLevel']))
+        publish_json['InfluxDBTokenAccessType'] = message['accessLevel']
+        publish_json['InfluxDBToken'] = token
+        logging.info('Sending InfluxDB {} Token on the response topic'.format(message['accessLevel']))
+        return publish_json
+
+    def publish_response(self, publishMessage) -> None:
         """
         Publish the InfluxDB token on the token response topic.
 
         Parameters
         ----------
-            None
+            publishMessage(str): the message to send including InfluxDB metadata and token
 
         Returns
         -------
@@ -96,8 +135,8 @@ class InfluxDBTokenStreamHandler(client.SubscribeToTopicStreamHandler):
             request = PublishToTopicRequest()
             request.topic = self.publish_topic
             publish_message = PublishMessage()
-            publish_message.binary_message = BinaryMessage()
-            publish_message.binary_message.message = bytes(self.influxDB_json, "utf-8")
+            publish_message.json_message = JsonMessage()
+            publish_message.json_message.message = publishMessage
             request.publish_message = publish_message
             operation = self.publish_client.new_publish_to_topic()
             operation.activate(request)
