@@ -50,21 +50,17 @@ def get_secret_over_ipc(secret_arn) -> str:
         operation = ipc_client.new_get_secret_value()
         operation.activate(request)
         futureResponse = operation.get_response()
-        try:
-            response = futureResponse.result(TIMEOUT)
-            return response.secret_value.secret_string
-        except concurrent.futures.TimeoutError as e:
-            logging.error("Timeout occurred while getting secret: {}".format(secret_arn), exc_info=True)
-            raise e
-        except UnauthorizedError as e:
-            logging.error("Unauthorized error while getting secret: {}".format(secret_arn), exc_info=True)
-            raise e
-        except Exception as e:
-            logging.error("Exception while getting secret: {}".format(secret_arn), exc_info=True)
-            raise e
-    except Exception:
-        logging.error("Exception occurred when using IPC.", exc_info=True)
-        exit(1)
+        response = futureResponse.result(TIMEOUT)
+        return response.secret_value.secret_string
+    except concurrent.futures.TimeoutError as e:
+        logging.error("Timeout occurred while getting secret: {}".format(secret_arn), exc_info=True)
+        raise e
+    except UnauthorizedError as e:
+        logging.error("Unauthorized error while getting secret: {}".format(secret_arn), exc_info=True)
+        raise e
+    except Exception as e:
+        logging.error("Exception while getting secret: {}".format(secret_arn), exc_info=True)
+        raise e
 
 
 def retrieve_secret(secret_arn):

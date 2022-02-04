@@ -1,7 +1,7 @@
 ---
 RecipeFormatVersion: '2020-01-25'
 ComponentName: aws.greengrass.labs.database.InfluxDB
-ComponentVersion: '1.0.0'
+ComponentVersion: '2.0.0'
 ComponentDescription: 'A component that provisions and manages an InfluxDB instance.'
 ComponentPublisher: Amazon
 ComponentDependencies:
@@ -15,7 +15,7 @@ ComponentConfiguration:
   DefaultConfiguration:
     AutoProvision: 'true'
     InfluxDBMountPath: '/home/ggc_user/dashboard'
-    SecretArn: 'arn:aws:secretsmanager:<region>:<account>:secret:<name>'
+    SecretArn: 'arn:aws:secretsmanager:region:account:secret:name'
     InfluxDBContainerName: greengrass_InfluxDB
     InfluxDBOrg: 'greengrass'
     InfluxDBBucket: 'greengrass-telemetry'
@@ -48,7 +48,7 @@ ComponentConfiguration:
           operations:
             - aws.greengrass#GetSecretValue
           resources:
-            - 'arn:aws:secretsmanager:<region>:<account>:secret:<name>'
+            - 'arn:aws:secretsmanager:region:account:secret:name'
 Manifests:
   - Platform:
       os: /darwin|linux/

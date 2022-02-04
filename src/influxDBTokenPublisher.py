@@ -19,6 +19,9 @@ from influxDBTokenStreamHandler import InfluxDBTokenStreamHandler
 
 logging.basicConfig(level=logging.INFO)
 TIMEOUT = 10
+# Influx commands need to be given the port of InfluxDB inside the container, which is always 8086 unless
+# overridden inside the InfluxDB config
+INFLUX_CONTAINER_PORT = 8086
 
 
 def parse_arguments() -> Namespace:
@@ -47,7 +50,7 @@ def parse_arguments() -> Namespace:
     return parser.parse_args()
 
 
-def retrieve_influxDB_token(args) -> str:
+def retrieve_influxDB_token_json(args) -> str:
     """
     Retrieve the created RW token from InfluxDB.
 
@@ -61,11 +64,10 @@ def retrieve_influxDB_token(args) -> str:
     """
 
     token_json = ""
-    dockerExecProcess = ""
     authListCommand = ['docker', 'exec', '-t', args.influxdb_container_name, 'influx', 'auth', 'list', '--json']
     if args.server_protocol == "https":
         authListCommand.append('--host')
-        authListCommand.append('https://{}:{}'.format(args.influxdb_container_name, args.influxdb_port))
+        authListCommand.append('https://{}:{}'.format(args.influxdb_container_name, INFLUX_CONTAINER_PORT))
 
     if bool(strtobool(args.skip_tls_verify)):
         authListCommand.append('--skip-verify')
@@ -78,24 +80,24 @@ def retrieve_influxDB_token(args) -> str:
     if dockerExecProcess.stderr:
         logging.error(dockerExecProcess.stderr)
     if(len(token_json) == 0):
-        logging.error('Failed to retrieve InfluxDB RW token data from Docker! Retrieved token was: {}'.format(token_json))
+        logging.error('Failed to retrieve InfluxDB RW token data from Docker! Retrieved data was: {}'.format(token_json))
         exit(1)
-    influxdb_rw_token = next(d for d in json.loads(token_json) if d['description'] == 'greengrass_readwrite')['token']
-    if(len(influxdb_rw_token) == 0):
-        logging.error('Failed to parse InfluxDB RW token! Retrieved token was: {}'.format(influxdb_rw_token))
+    influxdb_token = json.loads(token_json)[0]['token']
+    if(len(influxdb_token) == 0):
+        logging.error('Retrieved InfluxDB tokens was empty!')
         exit(1)
 
-    return influxdb_rw_token
+    return token_json
 
 
-def listen_to_token_requests(args, influxdb_rw_token) -> None:
+def listen_to_token_requests(args, influxdb_token_json) -> None:
     """
     Setup a new IPC subscription over local pub/sub to listen to token requests and vend tokens.
 
     Parameters
     ----------
         args(Namespace): Parsed arguments
-        influxdb_rw_token(str): InfluxDB RW token
+        influxdb_token_json(str): InfluxDB token JSON string
 
     Returns
     -------
@@ -103,23 +105,22 @@ def listen_to_token_requests(args, influxdb_rw_token) -> None:
     """
 
     try:
-        influxDB_data = {}
-        influxDB_data['InfluxDBContainerName'] = args.influxdb_container_name
-        influxDB_data['InfluxDBOrg'] = args.influxdb_org
-        influxDB_data['InfluxDBBucket'] = args.influxdb_bucket
-        influxDB_data['InfluxDBPort'] = args.influxdb_port
-        influxDB_data['InfluxDBInterface'] = args.influxdb_interface
-        influxDB_data['InfluxDBRWToken'] = influxdb_rw_token
-        influxDB_data['InfluxDBServerProtocol'] = args.server_protocol
-        influxDB_data['InfluxDBSkipTLSVerify'] = args.skip_tls_verify
-        influxDB_json = json.dumps(influxDB_data)
+        influxdb_metadata = {}
+        influxdb_metadata['InfluxDBContainerName'] = args.influxdb_container_name
+        influxdb_metadata['InfluxDBOrg'] = args.influxdb_org
+        influxdb_metadata['InfluxDBBucket'] = args.influxdb_bucket
+        influxdb_metadata['InfluxDBPort'] = args.influxdb_port
+        influxdb_metadata['InfluxDBInterface'] = args.influxdb_interface
+        influxdb_metadata['InfluxDBServerProtocol'] = args.server_protocol
+        influxdb_metadata['InfluxDBSkipTLSVerify'] = args.skip_tls_verify
+        influxdb_metadata_json = json.dumps(influxdb_metadata)
 
         logging.info('Successfully retrieved InfluxDB parameters!')
 
         ipc_client = awsiot.greengrasscoreipc.connect()
         request = SubscribeToTopicRequest()
         request.topic = args.subscribe_topic
-        handler = InfluxDBTokenStreamHandler(influxDB_json, args.publish_topic)
+        handler = InfluxDBTokenStreamHandler(influxdb_metadata_json, influxdb_token_json, args.publish_topic)
         operation = ipc_client.new_subscribe_to_topic(handler)
         operation.activate(request)
         logging.info('Successfully subscribed to topic: {}'.format(args.subscribe_topic))
@@ -138,8 +139,8 @@ def listen_to_token_requests(args, influxdb_rw_token) -> None:
 if __name__ == "__main__":
     try:
         args = parse_arguments()
-        influxdb_rw_token = retrieve_influxDB_token(args)
-        listen_to_token_requests(args, influxdb_rw_token)
+        influxdb_token_json = retrieve_influxDB_token_json(args)
+        listen_to_token_requests(args, influxdb_token_json)
         # Keep the main thread alive, or the process will exit.
         while True:
             time.sleep(10)

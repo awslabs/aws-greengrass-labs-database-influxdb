@@ -2,7 +2,7 @@
   "component" :{
     "aws.greengrass.labs.database.InfluxDB": {
       "author": "AWS IoT Greengrass",
-      "version": "NEXT_PATCH",
+      "version": "2.0.0",
       "build": {
         "build_system": "zip"
       },

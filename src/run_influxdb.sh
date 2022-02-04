@@ -44,8 +44,8 @@ fi
 # If auto-provisioning, provision the container and begin vending the token
 child_pid=""
 if [ "$AUTO_PROVISION" == "true" ]; then
-  echo "Auto-provisioning InfluxDB with provided secrets..."
-  provision_influxdb $CONTAINER_NAME $BUCKET_NAME $ORG_NAME $ARTIFACT_PATH $SECRET_ARN $INFLUXDB_PORT $SERVER_PROTOCOL $BRIDGE_NETWORK_NAME $INFLUXDB_MOUNT_PATH $INFLUXDB_INTERFACE
+  echo "Using InfluxDB in auto-provisioning mode..."
+  provision_influxdb $CONTAINER_NAME $BUCKET_NAME $ORG_NAME $ARTIFACT_PATH $SECRET_ARN $INFLUXDB_PORT $SERVER_PROTOCOL $BRIDGE_NETWORK_NAME $INFLUXDB_MOUNT_PATH $INFLUXDB_INTERFACE $SKIP_TLS_VERIFY
 
   python3 -u "$ARTIFACT_PATH/influxDBTokenPublisher.py" \
     --subscribe_topic $TOKEN_REQUEST_TOPIC \
@@ -62,7 +62,7 @@ if [ "$AUTO_PROVISION" == "true" ]; then
 else
   echo "Auto-provisioning is disabled, skippping..."
   setup_blank_influxdb_with_http $CONTAINER_NAME $INFLUXDB_PORT $BRIDGE_NETWORK_NAME $INFLUXDB_MOUNT_PATH $INFLUXDB_INTERFACE
-  wait_for_influxdb_start $CONTAINER_NAME $INFLUXDB_PORT $SERVER_PROTOCOL
+  wait_for_influxdb_start $CONTAINER_NAME $INFLUXDB_PORT $SERVER_PROTOCOL $SKIP_TLS_VERIFY
 fi
 
 echo "InfluxDB is running..."
