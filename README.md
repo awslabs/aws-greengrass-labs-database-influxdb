@@ -176,11 +176,13 @@ The `aws.greengrass.labs.database.InfluxDB` component supports the following con
     ```
 
 5. Create the component:
-    1. (Optional) Modify the `aws.greengrass.labs.database.InfluxDB` recipe at `recipe.yaml`. NOTE: if you would like to specify this configuration during deployment, you can also specify this configuration during a deployment (see Step 6).
-        2. Replace the two occurrences of `'arn:aws:secretsmanager:region:account:secret:name'` with your created secret ARN, including in the `accessControl` policy.
-        3. (Optional) Modify the mount path. The default used will be `/home/ggc_user/dashboard`.
-            1. When specifying a mount path, note that this mount path will be used to store sensitive data, including secrets and certs used for InfluxDB auth. You are responsible for securing this directory on your device. Ensure that `ggc_user:ggc_group` has read/write/execute access to this directory with the following command: `namei -m <path>`.
-    3. Use the [GDK CLI](https://docs.aws.amazon.com/greengrass/v2/developerguide/greengrass-development-kit-cli.html) to build the component to prepare for publishing.
+
+    1. Modify the `aws.greengrass.labs.database.InfluxDB` recipe at `recipe.yaml`. NOTE: if you would like to specify this configuration during deployment, you can also specify this configuration during a deployment instead (see Step 6).
+       1. Replace the two occurrences of `'arn:aws:secretsmanager:region:account:secret:name'` with your created secret ARN, including in the `accessControl` policy.
+       2. (Optional) Modify the mount path. The default used will be `/home/ggc_user/dashboard`, **which this component will create for you**.
+           1. When specifying a mount path, note that this mount path will be used to store sensitive data, including secrets and certs used for InfluxDB auth. You are responsible for securing this directory on your device. Ensure that `ggc_user:ggc_group` has read/write/execute access to this directory with the following command: `namei -m <path>`.
+   
+    2. Use the [GDK CLI](https://docs.aws.amazon.com/greengrass/v2/developerguide/greengrass-development-kit-cli.html) to build the component to prepare for publishing.
    ```
    gdk component build
    ```
@@ -188,7 +190,7 @@ The `aws.greengrass.labs.database.InfluxDB` component supports the following con
    ```
    gdk component publish
    ```
-6. Create deployment via the AWS CLI or AWS Console, from [Greengrass documentation](https://docs.aws.amazon.com/greengrass/v2/developerguide/create-deployments.html). The following components should be configured in your deployment:
+7. Create deployment via the AWS CLI or AWS Console, from [Greengrass documentation](https://docs.aws.amazon.com/greengrass/v2/developerguide/create-deployments.html). The following components should be configured in your deployment:
     1. `aws.greengrass.SecretManager`:
    ```
    "cloudSecrets": [
@@ -267,7 +269,9 @@ The `aws.greengrass.labs.database.InfluxDB` component supports the following con
         * `{"action": "RetrieveToken",  "accessLevel": "Admin"}`
             * Retrieve an InfluxDB admin token along with all necessary metadata.
 * By default, the response topic is `/greengrass/influxdb/token/response`, but can be configurable. Responses sent on this topic will be in the following JSON format:
-    * ```
+  
+    * 
+  ```
     {
         InfluxDBContainerName : <influxDB container name>,
         InfluxDBOrg : <influxDB org>,
@@ -281,8 +285,8 @@ The `aws.greengrass.labs.database.InfluxDB` component supports the following con
     }
     ```
     * If you would like to view an example of usage, see
-        * [the `aws.greengrass.labs.telemetry.InfluxDBPublisher` component, which retrives a RW token and relays Greengrass system health telemetry to InfluxDB](https://github.com/awslabs/aws-greengrass-labs-telemetry-influxdbpublisher)
-        * [the `aws.greengrass.labs.dashboard.InfluxDBGrafana` component, which retrieves a RO token and uses it to automatically connect Grafana with InfluxDB](https://github.com/awslabs/aws-greengrass-labs-dashboard-influxdb-grafana)
+        * the [`aws.greengrass.labs.telemetry.InfluxDBPublisher` component, which retrieves a RW token and relays Greengrass system health telemetry to InfluxDB](https://github.com/awslabs/aws-greengrass-labs-telemetry-influxdbpublisher)
+        * the [`aws.greengrass.labs.dashboard.InfluxDBGrafana` component, which retrieves a RO token and uses it to automatically connect Grafana with InfluxDB](https://github.com/awslabs/aws-greengrass-labs-dashboard-influxdb-grafana)
 
 
 ## Sending Telemetry to InfluxDB
@@ -361,45 +365,49 @@ This project also uses but does not distribute the InfluxDBv2 Docker image from 
 ## Troubleshooting
 
 
-*
+* 
   ```
   Could not import awsiot
   ```
-Ensure that `ggc_user` can import this Python library by running first `sudo su` and then `su - ggc_user -c "python3 -c 'import awsiot'"`
+    Ensure that `ggc_user` can import this Python library by running first `sudo su` and then `su - ggc_user -c "python3 -c 'import awsiot'"`
 
-*
+* 
   ```
   mkdir: Operation not permitted
   ```
-Ensure that your mount path has sufficient permission to create and mount directories into the container. If necessary, you can use `RequiresPrivilege: true` in the component recipe's lifecycle to run as root, although this is not recommended.
-*
+    Ensure that your mount path has sufficient permission to create and mount directories into the container. If necessary, you can use `RequiresPrivilege: true` in the component recipe's lifecycle to run as root, although this is not recommended.
+
+* 
   ```
   Attempt 0: Waiting until InfluxDB reports a status of OK....
   Error: Get "https://greengrass_InfluxDB:8086/api/v2/setup": dial tcp 172.18.0.2:8086: connect: connection refused..
   ```
-Not necessarily an error - InfluxDB can take a little while to start up. If after repeated retries with the same message the component fails, it means that the container did not start up correctly and exited. View the Docker logs retrieved inside the component log to debug further.
-*
+    Not necessarily an error - InfluxDB can take a little while to start up. If after repeated retries with the same message the component fails, it means that the container did not start up correctly and exited. View the Docker logs retrieved inside the component log to debug further.
+
+* 
   ```
   aws.greengrass.labs.database.InfluxDB: stderr. Error: open /etc/ssl/greengrass/influxdb.crt: operation not permitted. OR
   aws.greengrass.labs.database.InfluxDB: stderr. Error: open /etc/ssl/greengrass/influxdb.crt: no such file or directory.
   ```
-HTTPS cert file permissions are not permissive enough to allow Docker to mount them/have them be accessible by InfluxDB. Please review your file permissions.
-Logging in as `ggc_user` may be helpful for debugging: `su - ggc_user` or `sudo -u ggc_user -i`
-*
+    HTTPS cert file permissions are not permissive enough to allow Docker to mount them/have them be accessible by InfluxDB. Please review your file permissions.
+    Logging in as `ggc_user` may be helpful for debugging: `su - ggc_user` or `sudo -u ggc_user -i`
+* 
   ```
   ERROR: Max retries exceeded while waiting for InfluxDB to start. Dumping InfluxDB Docker logs and exiting....
   ```
-There was an issue starting the InfluxDB Docker container. Check the log dumps for more information - this is likely due to insufficient file permissions
-*
+    There was an issue starting the InfluxDB Docker container. Check the log dumps for more information - this is likely due to insufficient file permissions
+
+* 
   ```
   aws.greengrass.labs.database.InfluxDB: stdout. ts=2021-11-11T19:55:59.847535Z lvl=info msg=Unauthorized log_id=0XkE00UW000 error="authorization not found"
   ```
-If you are attempting to connect to InfluxDB or perform an operation, this error can occur due to insufficient token privileges.
-*
+    If you are attempting to connect to InfluxDB or perform an operation, this error can occur due to insufficient token privileges.
+
+* 
   ```
   warn msg="Flux query failed" logger=tsdb.influx_flux err="unauthorized: unauthorized access"
   ```  
-Check that the InfluxDB token used for your request is up to date and replace if necessary.
+    Check that the InfluxDB token used for your request is up to date and replace if necessary.
 
 
 
