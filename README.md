@@ -262,12 +262,13 @@ The `aws.greengrass.labs.database.InfluxDB` component supports the following con
     * For more information, see the [Greengrass documentation on local pub/sub](https://docs.aws.amazon.com/greengrass/v2/developerguide/ipc-publish-subscribe.html).
 * By default, the request topic is `greengrass/influxdb/token/request`, but can be configured. This component will listen to requests on this topic and respond on the response topic with the requested data.
     * The contents of the JSON request should consist of one of the following:
-        * `{"action": "RetrieveToken",  "accessLevel": "RO"}`
+        * `{"action": "RetrieveToken",  "accessLevel": "RO", "request_id":"0123-4567-8910"}`
             * Retrieve an InfluxDB read-only token along with all necessary metadata.
-        * `{"action": "RetrieveToken",  "accessLevel": "RW"}`
+        * `{"action": "RetrieveToken",  "accessLevel": "RW", "request_id":"0123-4567-8910"}`
             * Retrieve an InfluxDB read/write token along with all necessary metadata.
-        * `{"action": "RetrieveToken",  "accessLevel": "Admin"}`
+        * `{"action": "RetrieveToken",  "accessLevel": "Admin", "request_id":"0123-4567-8910"}`
             * Retrieve an InfluxDB admin token along with all necessary metadata.
+        * `request_id` is sent by the sender in order to filter response from InfluxDB Token Vending in case of multiple component request token (Component name of the sender can be used.).
 * By default, the response topic is `/greengrass/influxdb/token/response`, but can be configurable. Responses sent on this topic will be in the following JSON format:
   
     * 
