@@ -70,6 +70,7 @@ def retrieve_secret(secret_arn):
         return "{} {}".format(secret_json["influxdb_username"], secret_json["influxdb_password"])
     except Exception as e:
         logging.error("Exception while retrieving secret: {}".format(secret_arn), exc_info=True)
+        logging.error(e)
         raise e
 
 
