@@ -114,6 +114,8 @@ class InfluxDBTokenStreamHandler(client.SubscribeToTopicStreamHandler):
 
         if len(token) == 0:
             raise ValueError('Failed to parse InfluxDB {} token!'.format(message['accessLevel']))
+        if ('request_id' in message):
+            publish_json['request_id'] = message['request_id']
         publish_json['InfluxDBTokenAccessType'] = message['accessLevel']
         publish_json['InfluxDBToken'] = token
         logging.info('Sending InfluxDB {} Token on the response topic'.format(message['accessLevel']))

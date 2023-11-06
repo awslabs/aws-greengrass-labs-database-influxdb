@@ -1,7 +1,7 @@
 ---
 RecipeFormatVersion: '2020-01-25'
 ComponentName: aws.greengrass.labs.database.InfluxDB
-ComponentVersion: '2.0.0'
+ComponentVersion: '2.1.0'
 ComponentDescription: 'A component that provisions and manages an InfluxDB instance.'
 ComponentPublisher: Amazon
 ComponentDependencies:
